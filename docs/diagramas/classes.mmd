@@ -1,0 +1,130 @@
+classDiagram
+    class Usuario {
+        - id_usuario: int
+        - nome: str
+        - email: str
+        - password: str
+        + is_staff: bool
+        + is_active: bool
+        + is_superuser: bool
+        + has_perm(perm: str, obj: object): bool
+        + has_module_perms(app_label: str): bool
+    }
+
+    class Aluno {
+        - id_aluno: int
+        - usuario: Usuario
+        - curso: Curso
+        - matricula: str | None
+    }
+
+    class Instituicao {
+        - id_instituicao: int
+        - nome: str
+    }
+
+    class Curso {
+        - id_curso: int
+        - nome: str
+        - instituicao: Instituicao
+    }
+
+    class Editora {
+        - id_editora: int
+        - nome: str
+        - cnpj: str | None
+    }
+
+    class Categoria {
+        - id_categoria: int
+        - descricao: str
+    }
+
+    class Autor {
+        - id_autor: int
+        - nome: str
+        - email: str | None
+        - cpf: str | None
+        - celular: str | None
+        - editora: Editora | None
+    }
+
+    class Livro {
+        - id_livro: int
+        - titulo: str
+        - isbn: str | None
+        - categoria: Categoria
+        - editora: Editora
+        - autores: list[Autor]
+    }
+
+    class LivroAutor {
+        - pk: CompositePrimaryKey
+        - livro: Livro
+        - autor: Autor
+    }
+
+    class Exemplar {
+        - id_exemplar: int
+        - livro: Livro
+        - edicao: str | None
+        - situacao: SituacaoExemplar
+    }
+
+    class Reserva {
+        - id_reserva: int
+        - usuario: Usuario
+        - livro: Livro
+        - data_reserva: date
+        - situacao: SituacaoReserva
+    }
+
+    class Emprestimo {
+        - id_emprestimo: int
+        - usuario: Usuario
+        - data_emprestimo: date
+        - data_prevista_devolucao: date | None
+        - data_devolucao: date | None
+        - itens: list[ItemEmprestimo]
+        + is_ativo: bool
+        + is_atrasado: bool
+    }
+
+    class ItemEmprestimo {
+        - id_item_emprestimo: int
+        - emprestimo: Emprestimo
+        - exemplar: Exemplar
+    }
+
+    class LogSistema {
+        - id_log: int
+        - id_aluno: Decimal | None
+        - descricao: str | None
+        - data_registro: datetime
+    }
+
+    class CirculacaoService {
+        + criar_emprestimo(usuario_id: int, exemplar_ids: list[int], data_prevista_devolucao: date | None, data_emprestimo: date | None): Emprestimo
+        + devolver_emprestimo(emprestimo_id: int, data_devolucao: date | None): Emprestimo
+        + criar_reserva(usuario_id: int, livro_id: int, data_reserva: date | None): Reserva
+        + cancelar_reserva(reserva_id: int): Reserva
+        + atender_reserva(reserva_id: int): Reserva
+    }
+
+    Instituicao "1" --> "*" Curso
+    Curso "1" --> "*" Aluno
+    Usuario "1" --> "*" Aluno
+    Editora "1" --> "*" Autor
+    Editora "1" --> "*" Livro
+    Categoria "1" --> "*" Livro
+    Livro "1" --> "*" LivroAutor
+    Autor "1" --> "*" LivroAutor
+    Livro "1" --> "*" Exemplar
+    Usuario "1" --> "*" Reserva
+    Livro "1" --> "*" Reserva
+    Usuario "1" --> "*" Emprestimo
+    Emprestimo "1" --> "*" ItemEmprestimo
+    Exemplar "1" --> "*" ItemEmprestimo
+    CirculacaoService ..> Emprestimo
+    CirculacaoService ..> Reserva
+    CirculacaoService ..> LogSistema

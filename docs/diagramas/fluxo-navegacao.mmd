@@ -1,0 +1,18 @@
+flowchart TD
+  H[Página inicial / Dashboard] --> C[Catálogo público]
+  C --> D[Detalhe do livro]
+  H --> L[Login]
+  C --> L
+  D --> L
+  L -->|credenciais válidas| DA[Dashboard autenticado]
+  DA --> E[Empréstimos]
+  E --> N[Novo empréstimo]
+  E --> DEV[Confirmar devolução]
+  DA --> R[Reservas]
+  DA --> G[Logs]
+  DA --> ADM[Gestão cadastral - Django Admin]
+  H --> S[Swagger / API Docs]
+  classDef publico fill:#e8f4ff,stroke:#1d70b7
+  classDef restrito fill:#fff0dc,stroke:#b65d00
+  class H,C,D,L,S publico
+  class DA,E,N,DEV,R,G,ADM restrito

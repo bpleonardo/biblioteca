@@ -1,0 +1,33 @@
+@startuml
+left to right direction
+actor Visitante
+actor "Usuário autenticado" as Usuario
+rectangle "Sistema de Gerenciamento de Biblioteca" {
+  usecase "Consultar indicadores públicos" as UC1
+  usecase "Pesquisar e consultar catálogo" as UC2
+  usecase "Autenticar-se" as UC3
+  usecase "Consultar painel completo" as UC4
+  usecase "Gerenciar catálogo" as UC5
+  usecase "Registrar empréstimo" as UC6
+  usecase "Registrar devolução" as UC7
+  usecase "Gerenciar reserva" as UC8
+  usecase "Consultar logs" as UC9
+  usecase "Gerenciar usuários e dados acadêmicos" as UC10
+  usecase "Verificar disponibilidade" as UC11
+  usecase "Registrar auditoria" as UC12
+}
+Visitante --> UC1
+Visitante --> UC2
+Visitante --> UC3
+Usuario --> UC4
+Usuario --> UC5
+Usuario --> UC6
+Usuario --> UC7
+Usuario --> UC8
+Usuario --> UC9
+Usuario --> UC10
+UC6 .> UC11 : <<include>>
+UC6 .> UC12 : <<include>>
+UC7 .> UC12 : <<include>>
+UC8 .> UC12 : <<include>>
+@enduml

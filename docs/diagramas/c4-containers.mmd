@@ -1,0 +1,5 @@
+flowchart TB
+  user["Navegador web\nBootstrap 5 + JavaScript"] -->|HTML, sessão e JSON/REST| django
+  django["Aplicação Django\nTemplates, views, DRF e serviços"] -->|ORM / psycopg| db[("PostgreSQL 16+\n14 tabelas e procedure de log")]
+  django --> swagger["drf-spectacular\nOpenAPI/Swagger UI"]
+  docker["Docker Compose\nambiente opcional"] -. hospeda .-> db

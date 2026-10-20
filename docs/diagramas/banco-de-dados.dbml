@@ -1,0 +1,117 @@
+// Esquema completo das 14 tabelas físicas do Sistema Biblioteca.
+// Compatível com dbdiagram.io / DBML.
+Project biblioteca {
+  database_type: 'PostgreSQL'
+  Note: 'Mapeamento das 14 tabelas físicas preservadas pela aplicação Django.'
+}
+
+Table tb_instituicao {
+  id_instituicao integer [pk, increment]
+  nome varchar(150) [not null]
+}
+
+Table tb_curso {
+  id_curso integer [pk, increment]
+  nome varchar(100) [not null]
+  id_instituicao integer [not null]
+}
+
+Table tb_usuario {
+  id_usuario integer [pk, increment]
+  nome varchar(100) [not null]
+  email varchar(150) [not null, unique]
+  senha varchar(255) [not null]
+}
+
+Table tb_aluno {
+  id_aluno integer [pk, increment]
+  id_usuario integer [not null]
+  id_curso integer [not null]
+  matricula varchar(30)
+}
+
+Table tb_editora {
+  id_editora integer [pk, increment]
+  nome varchar(100) [not null]
+  cnpj varchar(18)
+}
+
+Table tb_categoria {
+  id_categoria integer [pk, increment]
+  descricao varchar(100) [not null]
+}
+
+Table tb_autores {
+  id_autor integer [pk, increment]
+  nome varchar(100) [not null]
+  email varchar(150)
+  cpf varchar(14)
+  celular varchar(20)
+  id_editora integer
+}
+
+Table tb_livros {
+  id_livro integer [pk, increment]
+  titulo varchar(200) [not null]
+  isbn varchar(20)
+  id_categoria integer [not null]
+  id_editora integer [not null]
+}
+Table tb_livros_autores {
+  id_livro integer [not null]
+  id_autor integer [not null]
+  indexes {
+    (id_livro, id_autor) [pk]
+  }
+}
+
+Table tb_exemplares {
+  id_exemplar integer [pk, increment]
+  id_livro integer [not null]
+  edicao varchar(30)
+  situacao varchar(30)
+}
+
+Table tb_reserva {
+  id_reserva integer [pk, increment]
+  id_usuario integer [not null]
+  id_livro integer [not null]
+  data_reserva date [not null, default: `CURRENT_DATE`]
+  situacao varchar(30)
+}
+
+Table tb_emprestimo {
+  id_emprestimo integer [pk, increment]
+  id_usuario integer [not null]
+  data_emprestimo date [not null, default: `CURRENT_DATE`]
+  data_prevista_devolucao date
+  data_devolucao date
+}
+
+Table tb_item_emprestimo {
+  id_item_emprestimo integer [pk, increment]
+  id_emprestimo integer [not null]
+  id_exemplar integer [not null]
+}
+
+Table tb_log_sistema {
+  id_log integer [pk, increment]
+  id_aluno decimal(10,0)
+  descricao varchar(120)
+  data_registro timestamp [default: `CURRENT_TIMESTAMP`]
+}
+
+Ref: tb_curso.id_instituicao > tb_instituicao.id_instituicao [delete: restrict]
+Ref: tb_aluno.id_usuario > tb_usuario.id_usuario [delete: cascade]
+Ref: tb_aluno.id_curso > tb_curso.id_curso [delete: restrict]
+Ref: tb_autores.id_editora > tb_editora.id_editora [delete: set null]
+Ref: tb_livros.id_categoria > tb_categoria.id_categoria [delete: restrict]
+Ref: tb_livros.id_editora > tb_editora.id_editora [delete: restrict]
+Ref: tb_livros_autores.id_livro > tb_livros.id_livro [delete: cascade]
+Ref: tb_livros_autores.id_autor > tb_autores.id_autor [delete: cascade]
+Ref: tb_exemplares.id_livro > tb_livros.id_livro [delete: cascade]
+Ref: tb_reserva.id_usuario > tb_usuario.id_usuario [delete: cascade]
+Ref: tb_reserva.id_livro > tb_livros.id_livro [delete: cascade]
+Ref: tb_emprestimo.id_usuario > tb_usuario.id_usuario [delete: restrict]
+Ref: tb_item_emprestimo.id_emprestimo > tb_emprestimo.id_emprestimo [delete: cascade]
+Ref: tb_item_emprestimo.id_exemplar > tb_exemplares.id_exemplar [delete: restrict]

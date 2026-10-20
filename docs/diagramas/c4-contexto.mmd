@@ -1,0 +1,9 @@
+flowchart LR
+  visitante["Visitante\nconsulta catálogo e indicadores públicos"]
+  operador["Usuário autenticado\nopera cadastros, circulação e auditoria"]
+  sistema["Sistema de Gerenciamento de Biblioteca\ncatálogo, empréstimos, reservas e auditoria"]
+  admin["Django Admin / Swagger UI"]
+  visitante -->|HTTPS| sistema
+  operador -->|HTTPS| sistema
+  operador -->|navega para| admin
+  admin -->|usa| sistema

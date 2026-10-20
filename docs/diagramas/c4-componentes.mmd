@@ -1,0 +1,15 @@
+flowchart LR
+  web["Templates e views web<br/>app: core"] --> api["Views REST / DRF"]
+  api --> auth["Usuários e autenticação<br/>app: usuarios"]
+  api --> academico["Cadastros acadêmicos<br/>app: academico"]
+  api --> cat["Catálogo<br/>app: catalogo"]
+  api --> circ["Circulação<br/>app: circulacao"]
+  circ --> service["Serviços transacionais<br/>app: circulacao"]
+  service --> audit["Auditoria<br/>app: auditoria"]
+  auth --> orm["Modelos Django / ORM"]
+  academico --> orm
+  cat --> orm
+  service --> orm
+  audit --> proc["CALL sp_reg_log_sistema"]
+  orm --> db[(PostgreSQL)]
+  proc --> db

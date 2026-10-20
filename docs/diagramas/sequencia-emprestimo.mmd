@@ -1,0 +1,30 @@
+sequenceDiagram
+  actor O as Operador autenticado
+  participant W as Tela novo empréstimo
+  participant A as API DRF
+  participant S as criar_emprestimo
+  participant DB as PostgreSQL
+  participant L as sp_reg_log_sistema
+  O->>W: seleciona usuário, exemplares e data prevista
+  W->>A: POST /api/emprestimos/
+  A->>S: validar payload e executar serviço
+  S->>S: rejeita lista vazia, repetida ou data anterior
+  S->>DB: transaction.atomic + localizar usuário
+  S->>DB: SELECT exemplares FOR UPDATE
+  alt usuário/exemplar inexistente ou condição inválida
+    S-->>A: ValidationError
+    A-->>W: 400 com mensagem
+  else exemplar não disponível ou empréstimo ativo
+    S-->>A: ValidationError
+    A-->>W: 400 com mensagem
+  else condições válidas
+    S->>DB: inserir tb_emprestimo
+    loop cada exemplar
+      S->>DB: inserir tb_item_emprestimo
+      S->>DB: atualizar situacao para Emprestado
+    end
+    S->>L: registrar descrição do evento
+    L->>DB: CALL sp_reg_log_sistema
+    S-->>A: empréstimo criado
+    A-->>W: 201 + dados do empréstimo
+  end
