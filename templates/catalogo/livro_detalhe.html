@@ -1,0 +1,197 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ livro.titulo }} &bull; Detalhes da Obra{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'catalogo' %}" class="btn btn-outline-secondary btn-sm mb-3">
+        <i class="bi bi-arrow-left me-1"></i> Voltar ao Catálogo
+    </a>
+    <div class="d-flex justify-content-between align-items-start">
+        <div>
+            <h2 class="h3 mb-1 text-gray-800">{{ livro.titulo }}</h2>
+            <p class="text-muted mb-0">Código da obra: #{{ livro.id_livro }} &bull; ISBN: <code>{{ livro.isbn|default:'Não informado' }}</code></p>
+        </div>
+        <div class="d-flex gap-2">
+            {% if user.is_authenticated %}
+                <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#modalNovoExemplar">
+                    <i class="bi bi-plus-circle me-1"></i> Adicionar Exemplar
+                </button>
+                <a href="{% url 'reservas' %}?livro={{ livro.id_livro }}" class="btn btn-primary">
+                    <i class="bi bi-bookmark-plus me-1"></i> Reservar esta Obra
+                </a>
+            {% else %}
+                <a href="{% url 'login' %}?next={% url 'reservas' %}?livro={{ livro.id_livro }}" class="btn btn-outline-primary">
+                    <i class="bi bi-bookmark-plus me-1"></i> Entrar para reservar
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Ficha Catalográfica -->
+    <div class="col-md-4">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <h5 class="m-0 font-weight-bold text-dark fs-6">
+                    <i class="bi bi-info-circle me-1"></i> Dados Bibliográficos
+                </h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item px-0">
+                        <span class="text-muted small d-block">Categoria</span>
+                        <span class="fw-semibold">{{ livro.categoria.descricao }}</span>
+                    </li>
+                    <li class="list-group-item px-0">
+                        <span class="text-muted small d-block">Editora</span>
+                        <span class="fw-semibold">{{ livro.editora.nome }}</span>
+                        {% if livro.editora.cnpj %}<small class="text-muted d-block">CNPJ: {{ livro.editora.cnpj }}</small>{% endif %}
+                    </li>
+                    <li class="list-group-item px-0">
+                        <span class="text-muted small d-block">Autores Registrados</span>
+                        {% for autor in livro.autores.all %}
+                            <div class="d-flex justify-content-between align-items-center mt-1">
+                                <span class="fw-medium"><i class="bi bi-person me-1"></i> {{ autor.nome }}</span>
+                                {% if autor.email %}<small class="text-muted">{{ autor.email }}</small>{% endif %}
+                            </div>
+                        {% empty %}
+                            <span class="text-muted fst-italic">Nenhum autor associado.</span>
+                        {% endfor %}
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lista de Exemplares Físicos -->
+    <div class="col-md-8">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="m-0 font-weight-bold text-primary fs-6">
+                    <i class="bi bi-collection me-1"></i> Exemplares Físicos Registrados
+                </h5>
+                <span class="badge bg-secondary">{{ livro.exemplares.count }} exemplar(es)</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 100px;">Exemplar #</th>
+                                <th>Edição</th>
+                                <th>Situação Atual</th>
+                                <th class="text-end">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblExemplaresBody">
+                            {% for ex in livro.exemplares.all %}
+                                <tr>
+                                    <td class="fw-bold text-muted">#{{ ex.id_exemplar }}</td>
+                                    <td>{{ ex.edicao|default:'Edição Padrão' }}</td>
+                                    <td>
+                                        {% if ex.situacao == 'Disponível' %}
+                                            <span class="badge badge-status badge-disponivel">Disponível</span>
+                                        {% elif ex.situacao == 'Emprestado' %}
+                                            <span class="badge badge-status badge-emprestado">Emprestado</span>
+                                        {% else %}
+                                            <span class="badge badge-status badge-indisponivel">{{ ex.situacao }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end">
+                                        {% if ex.situacao == 'Disponível' %}
+                                            {% if user.is_authenticated %}
+                                                <a href="{% url 'emprestimo-novo' %}?exemplar={{ ex.id_exemplar }}" class="btn btn-sm btn-outline-success">
+                                                    <i class="bi bi-arrow-right-circle me-1"></i> Emprestar
+                                                </a>
+                                            {% else %}
+                                                <a href="{% url 'login' %}?next={% url 'emprestimo-novo' %}?exemplar={{ ex.id_exemplar }}" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-box-arrow-in-right me-1"></i> Entrar para solicitar empréstimo
+                                                </a>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted small">Indisponível para saída</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">
+                                        Nenhum exemplar físico cadastrado para esta obra.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if user.is_authenticated %}
+<!-- Modal Novo Exemplar -->
+<div class="modal fade" id="modalNovoExemplar" tabindex="-1" aria-labelledby="modalNovoExemplarLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovoExemplarLabel">Novo Exemplar Físico</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form id="formNovoExemplar">
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">Obra: <strong>{{ livro.titulo }}</strong></p>
+                    <div class="mb-3">
+                        <label for="edicao" class="form-label">Edição</label>
+                        <input type="text" class="form-control" id="edicao" name="edicao" placeholder="ex: 1ª Edição, 2024">
+                    </div>
+                    <div class="mb-3">
+                        <label for="situacao" class="form-label">Situação Inicial</label>
+                        <select class="form-select" id="situacao" name="situacao">
+                            <option value="Disponível" selected>Disponível</option>
+                            <option value="Indisponível">Indisponível</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnSalvarExemplar">Cadastrar Exemplar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const formNovoEx = document.getElementById('formNovoExemplar');
+if (formNovoEx) {
+    formNovoEx.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btnSalvarExemplar');
+        btn.disabled = true;
+
+        const payload = {
+            livro: {{ livro.id_livro }},
+            edicao: document.getElementById('edicao').value.trim() || null,
+            situacao: document.getElementById('situacao').value
+        };
+
+        try {
+            await apiFetch('/api/exemplares/', {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            showAlert('dynamicAlerts', 'Exemplar físico cadastrado com sucesso!', 'success');
+            setTimeout(() => window.location.reload(), 1000);
+        } catch (err) {
+            alert(`Erro ao cadastrar exemplar: ${err.message}`);
+            btn.disabled = false;
+        }
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,293 @@
+{% extends 'base.html' %}
+
+{% block title %}Gerenciamento de Reservas &bull; Sistema de Biblioteca{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="h3 mb-1 text-gray-800">Reservas de Livros</h2>
+        <p class="text-muted mb-0">Controle de reservas por obra, atendimento da fila e cancelamentos.</p>
+    </div>
+    <div>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovaReserva">
+            <i class="bi bi-bookmark-plus me-1"></i> Criar Nova Reserva
+        </button>
+    </div>
+</div>
+
+<!-- Filtros de Reservas -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="fw-bold small text-muted me-2">Filtrar por Situação:</span>
+            <button class="btn btn-sm btn-outline-primary active" id="btnResTodas" onclick="filtrarReservas('')">
+                Todas as Reservas
+            </button>
+            <button class="btn btn-sm btn-outline-info" id="btnResPendentes" onclick="filtrarReservas('Pendente')">
+                <i class="bi bi-clock me-1"></i> Pendentes
+            </button>
+            <button class="btn btn-sm btn-outline-success" id="btnResAtendidas" onclick="filtrarReservas('Atendida')">
+                <i class="bi bi-check2-circle me-1"></i> Atendidas
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="btnResCanceladas" onclick="filtrarReservas('Cancelada')">
+                <i class="bi bi-x-circle me-1"></i> Canceladas
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Reservas -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th>Livro / Obra</th>
+                        <th>Usuário Solicitante</th>
+                        <th style="width: 140px;">Data da Reserva</th>
+                        <th style="width: 130px;">Situação</th>
+                        <th class="text-end" style="width: 180px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tblReservasBody">
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted">
+                            <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                            Carregando reservas...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="small text-muted" id="paginacaoReservasInfo">Exibindo registros</span>
+        <div class="btn-group btn-group-sm" id="paginacaoReservasBotoes"></div>
+    </div>
+</div>
+
+<!-- Modal Nova Reserva -->
+<div class="modal fade" id="modalNovaReserva" tabindex="-1" aria-labelledby="modalNovaReservaLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovaReservaLabel">Cadastrar Nova Reserva</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form id="formNovaReserva">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="resUsuario" class="form-label">Usuário Solicitante *</label>
+                        <select class="form-select" id="resUsuario" required>
+                            <option value="">Selecione o usuário...</option>
+                            {% for u in usuarios %}
+                                <option value="{{ u.id_usuario }}">{{ u.nome }} ({{ u.email }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="resLivro" class="form-label">Obra Bibliográfica *</label>
+                        <select class="form-select" id="resLivro" required>
+                            <option value="">Selecione o livro...</option>
+                            {% for l in livros %}
+                                <option value="{{ l.id_livro }}">{{ l.titulo }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small">Conforme o modelo original, a reserva é vinculada à obra bibliográfica.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnSalvarReserva">
+                        <span class="spinner-border spinner-border-sm d-none me-1" id="spinnerSalvarReserva"></span>
+                        Confirmar Reserva
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let situacaoAtual = '';
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Verificar se há pré-seleção na URL: ?livro=ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const preLivro = urlParams.get('livro');
+    if (preLivro) {
+        document.getElementById('resLivro').value = preLivro;
+        const modal = new bootstrap.Modal(document.getElementById('modalNovaReserva'));
+        modal.show();
+    }
+
+    carregarReservas('/api/reservas/');
+    document.getElementById('formNovaReserva').addEventListener('submit', salvarReserva);
+});
+
+function filtrarReservas(situacao) {
+    situacaoAtual = situacao;
+    ['btnResTodas', 'btnResPendentes', 'btnResAtendidas', 'btnResCanceladas'].forEach(id => {
+        document.getElementById(id).classList.remove('active');
+    });
+
+    if (!situacao) {
+        document.getElementById('btnResTodas').classList.add('active');
+        carregarReservas('/api/reservas/');
+    } else {
+        if (situacao === 'Pendente') document.getElementById('btnResPendentes').classList.add('active');
+        if (situacao === 'Atendida') document.getElementById('btnResAtendidas').classList.add('active');
+        if (situacao === 'Cancelada') document.getElementById('btnResCanceladas').classList.add('active');
+        carregarReservas(`/api/reservas/?situacao=${encodeURIComponent(situacao)}`);
+    }
+}
+
+async function carregarReservas(url) {
+    const tbody = document.getElementById('tblReservasBody');
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Carregando reservas...</td></tr>';
+
+    try {
+        const data = await apiFetch(url);
+        const reservas = data.results || data;
+
+        if (reservas.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Nenhuma reserva encontrada.</td></tr>';
+            document.getElementById('paginacaoReservasInfo').innerText = '0 registros encontrados';
+            document.getElementById('paginacaoReservasBotoes').innerHTML = '';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        reservas.forEach(r => {
+            let badgeClass = 'badge-secondary';
+            if (r.situacao === 'Pendente') badgeClass = 'badge-pendente';
+            if (r.situacao === 'Atendida') badgeClass = 'badge-atendida';
+            if (r.situacao === 'Cancelada') badgeClass = 'badge-cancelada';
+
+            let acoesHtml = '';
+            if (r.situacao === 'Pendente') {
+                acoesHtml = `
+                    <button class="btn btn-sm btn-outline-success me-1" onclick="atenderReserva(${r.id_reserva})" title="Marcar como Atendida">
+                        <i class="bi bi-check-lg"></i> Atender
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="cancelarReserva(${r.id_reserva})" title="Cancelar Reserva">
+                        <i class="bi bi-x-lg"></i> Cancelar
+                    </button>
+                `;
+            } else {
+                acoesHtml = `<span class="text-muted small fst-italic">Finalizada</span>`;
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="text-muted fw-bold">#${r.id_reserva}</td>
+                <td class="fw-semibold">${r.livro_titulo}</td>
+                <td>
+                    <div>${r.usuario_nome}</div>
+                    <small class="text-muted">${r.usuario_email}</small>
+                </td>
+                <td>${formatDate(r.data_reserva)}</td>
+                <td><span class="badge badge-status ${badgeClass}">${r.situacao}</span></td>
+                <td class="text-end">${acoesHtml}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Paginação
+        if (data.count !== undefined) {
+            document.getElementById('paginacaoReservasInfo').innerText = `Total: ${data.count} reservas`;
+            const btnGroup = document.getElementById('paginacaoReservasBotoes');
+            btnGroup.innerHTML = '';
+
+            if (data.previous) {
+                const btnPrev = document.createElement('button');
+                btnPrev.className = 'btn btn-outline-secondary';
+                btnPrev.innerHTML = '&laquo; Anterior';
+                btnPrev.onclick = () => carregarReservas(data.previous);
+                btnGroup.appendChild(btnPrev);
+            }
+
+            if (data.next) {
+                const btnNext = document.createElement('button');
+                btnNext.className = 'btn btn-outline-secondary';
+                btnNext.innerHTML = 'Próxima &raquo;';
+                btnNext.onclick = () => carregarReservas(data.next);
+                btnGroup.appendChild(btnNext);
+            }
+        }
+
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-4 text-danger">Erro ao carregar dados: ${err.message}</td></tr>`;
+    }
+}
+
+async function salvarReserva(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSalvarReserva');
+    const spinner = document.getElementById('spinnerSalvarReserva');
+
+    const usuarioId = document.getElementById('resUsuario').value;
+    const livroId = document.getElementById('resLivro').value;
+
+    if (!usuarioId || !livroId) {
+        alert('Selecione o usuário e a obra para reservar.');
+        return;
+    }
+
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+
+    try {
+        await apiFetch('/api/reservas/', {
+            method: 'POST',
+            body: JSON.stringify({
+                usuario_id: parseInt(usuarioId),
+                livro_id: parseInt(livroId)
+            })
+        });
+
+        showAlert('dynamicAlerts', 'Reserva criada com sucesso!', 'success');
+
+        const modalEl = document.getElementById('modalNovaReserva');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        document.getElementById('formNovaReserva').reset();
+
+        filtrarReservas(situacaoAtual);
+    } catch (err) {
+        alert(`Erro ao criar reserva: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+
+async function atenderReserva(id) {
+    if (!confirm(`Deseja atender e concluir a Reserva #${id}?`)) return;
+
+    try {
+        await apiFetch(`/api/reservas/${id}/atendimento/`, { method: 'POST' });
+        showAlert('dynamicAlerts', `Reserva #${id} marcada como atendida!`, 'success');
+        filtrarReservas(situacaoAtual);
+    } catch (err) {
+        alert(`Erro ao atender reserva: ${err.message}`);
+    }
+}
+
+async function cancelarReserva(id) {
+    if (!confirm(`Tem certeza que deseja cancelar a Reserva #${id}?`)) return;
+
+    try {
+        await apiFetch(`/api/reservas/${id}/cancelamento/`, { method: 'POST' });
+        showAlert('dynamicAlerts', `Reserva #${id} cancelada com sucesso.`, 'info');
+        filtrarReservas(situacaoAtual);
+    } catch (err) {
+        alert(`Erro ao cancelar reserva: ${err.message}`);
+    }
+}
+</script>
+{% endblock %}

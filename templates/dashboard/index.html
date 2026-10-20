@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+
+{% block title %}Início &bull; Sistema de Biblioteca{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="h3 mb-1 text-gray-800">
+            {% if user.is_authenticated %}
+                Painel Geral da Biblioteca
+            {% else %}
+                Biblioteca Institucional
+            {% endif %}
+        </h2>
+        <p class="text-muted mb-0">
+            {% if user.is_authenticated %}
+                Visão consolidada de acervo, circulação e atividades recentes.
+            {% else %}
+                Consulte nosso acervo bibliográfico e a disponibilidade de exemplares físicos.
+            {% endif %}
+        </p>
+    </div>
+    <div class="d-flex gap-2">
+        {% if user.is_authenticated %}
+            <a href="{% url 'emprestimo-novo' %}" class="btn btn-primary">
+                <i class="bi bi-plus-circle me-1"></i> Novo Empréstimo
+            </a>
+            <a href="{% url 'reservas' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-bookmark-plus me-1"></i> Nova Reserva
+            </a>
+        {% else %}
+            <a href="{% url 'catalogo' %}" class="btn btn-primary">
+                <i class="bi bi-search me-1"></i> Consultar Catálogo
+            </a>
+            <a href="{% url 'login' %}?next=/" class="btn btn-outline-primary">
+                <i class="bi bi-box-arrow-in-right me-1"></i> Entrar no Sistema
+            </a>
+        {% endif %}
+        <button id="btnRefreshDashboard" class="btn btn-light border" title="Atualizar dados">
+            <i class="bi bi-arrow-clockwise"></i>
+        </button>
+    </div>
+</div>
+
+<!-- Cards de Métricas -->
+<div class="row g-3 mb-4">
+    <!-- Livros (Público) -->
+    <div class="{% if user.is_authenticated %}col-xl-3 col-md-6{% else %}col-md-6{% endif %}">
+        <div class="card card-metric border-start border-primary border-4 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Títulos no Catálogo</div>
+                        <div class="metric-value text-gray-800" id="metricTotalLivros">
+                            <span class="spinner-border spinner-border-sm text-primary" role="status"></span>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-book fs-1 text-gray-300 text-muted opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Exemplares Disponíveis (Público) -->
+    <div class="{% if user.is_authenticated %}col-xl-3 col-md-6{% else %}col-md-6{% endif %}">
+        <div class="card card-metric border-start border-success border-4 shadow-sm h-100 py-2">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Exemplares Disponíveis</div>
+                        <div class="metric-value text-success" id="metricExemplaresDisponiveis">
+                            <span class="spinner-border spinner-border-sm text-success" role="status"></span>
+                        </div>
+                        {% if user.is_authenticated %}
+                            <small class="text-muted" id="metricTotalExemplares">Total: ...</small>
+                        {% endif %}
+                    </div>
+                    <div class="col-auto">
+                        <i class="bi bi-check2-circle fs-1 text-muted opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if user.is_authenticated %}
+        <!-- Empréstimos Ativos & Atrasados (Privado para Usuários Autenticados) -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card card-metric border-start border-warning border-4 shadow-sm h-100 py-2">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Empréstimos Ativos</div>
+                            <div class="metric-value text-warning" id="metricEmprestimosAtivos">
+                                <span class="spinner-border spinner-border-sm text-warning" role="status"></span>
+                            </div>
+                            <small class="text-danger fw-bold" id="metricEmprestimosAtrasados">Atrasados: ...</small>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-arrow-repeat fs-1 text-muted opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reservas Pendentes (Privado para Usuários Autenticados) -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card card-metric border-start border-info border-4 shadow-sm h-100 py-2">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Reservas Pendentes</div>
+                            <div class="metric-value text-info" id="metricReservasPendentes">
+                                <span class="spinner-border spinner-border-sm text-info" role="status"></span>
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="bi bi-clock-history fs-1 text-muted opacity-50"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+{% if user.is_authenticated %}
+    <!-- Seção Inferior Completa para Usuários Autenticados -->
+    <div class="row g-3">
+        <!-- Tabela de Movimentações Recentes (Audit Logs) -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="m-0 font-weight-bold text-primary fs-6">
+                        <i class="bi bi-activity me-1"></i> Últimas Movimentações Registradas
+                    </h5>
+                    <a href="{% url 'logs' %}" class="btn btn-sm btn-link text-decoration-none">Ver todos os logs &rarr;</a>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 80px;"># Log</th>
+                                    <th style="width: 170px;">Data/Hora</th>
+                                    <th style="width: 100px;">ID Usuário</th>
+                                    <th>Descrição da Operação</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tblMovimentacoesBody">
+                                <tr>
+                                    <td colspan="4" class="text-center py-4 text-muted">
+                                        <span class="spinner-border spinner-border-sm text-secondary me-2"></span>
+                                        Carregando movimentações...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Painel Lateral: Ações e Ferramentas -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="m-0 font-weight-bold text-dark fs-6">
+                        <i class="bi bi-lightning-charge me-1"></i> Ações Rápidas
+                    </h5>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div class="d-grid gap-2 mb-3">
+                        <a href="{% url 'emprestimo-novo' %}" class="btn btn-outline-primary text-start">
+                            <i class="bi bi-plus-circle me-2"></i> Realizar Novo Empréstimo
+                        </a>
+                        <a href="{% url 'emprestimos' %}" class="btn btn-outline-secondary text-start">
+                            <i class="bi bi-arrow-return-left me-2"></i> Consultar e Devolver Empréstimos
+                        </a>
+                        <a href="{% url 'catalogo' %}" class="btn btn-outline-secondary text-start">
+                            <i class="bi bi-search me-2"></i> Consultar Catálogo de Obras
+                        </a>
+                        <a href="{% url 'reservas' %}" class="btn btn-outline-secondary text-start">
+                            <i class="bi bi-calendar-check me-2"></i> Gerenciar Reservas de Livros
+                        </a>
+                    </div>
+
+                    <div class="pt-3 border-top">
+                        <div class="d-flex gap-2">
+                            <a href="/api/docs/" target="_blank" class="btn btn-outline-secondary flex-fill">
+                                <i class="bi bi-code-square me-1"></i> Swagger UI
+                            </a>
+                            <a href="/admin/" target="_blank" class="btn btn-outline-secondary flex-fill">
+                                <i class="bi bi-shield-lock me-1"></i> Django Admin
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <!-- Seção Exclusiva para Visitantes Não Autenticados -->
+    <div class="row g-3">
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="m-0 font-weight-bold text-primary fs-6">
+                        <i class="bi bi-journal-text me-1"></i> Catálogo Público de Obras
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Explore nosso acervo bibliográfico público. Você pode pesquisar títulos, autores e categorias temáticas, além de verificar em tempo real a quantidade de exemplares disponíveis para empréstimo.
+                    </p>
+                    <div class="d-flex gap-2 mt-4">
+                        <a href="{% url 'catalogo' %}" class="btn btn-primary">
+                            <i class="bi bi-search me-1"></i> Acessar Catálogo de Livros
+                        </a>
+                        <a href="{% url 'login' %}?next=/" class="btn btn-outline-secondary">
+                            <i class="bi bi-box-arrow-in-right me-1"></i> Entrar para Solicitar Empréstimos
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white py-3">
+                    <h5 class="m-0 font-weight-bold text-dark fs-6">
+                        <i class="bi bi-gear me-1"></i> Acesso e Ferramentas
+                    </h5>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-between">
+                    <div>
+                        <p class="small text-muted mb-3">
+                            A documentação da API e o painel de administração estão disponíveis nos links abaixo:
+                        </p>
+                    </div>
+
+                    <div class="pt-3 border-top">
+                        <div class="d-flex gap-2">
+                            <a href="/api/docs/" target="_blank" class="btn btn-outline-secondary flex-fill">
+                                <i class="bi bi-code-square me-1"></i> Swagger UI
+                            </a>
+                            <a href="/admin/" target="_blank" class="btn btn-outline-secondary flex-fill">
+                                <i class="bi bi-shield-lock me-1"></i> Django Admin
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadDashboardData();
+    document.getElementById('btnRefreshDashboard').addEventListener('click', loadDashboardData);
+});
+
+async function loadDashboardData() {
+    try {
+        const data = await apiFetch('/api/dashboard/');
+        
+        // Indicadores públicos (sempre preenchidos)
+        const elTotalLivros = document.getElementById('metricTotalLivros');
+        if (elTotalLivros && data.total_livros !== undefined) {
+            elTotalLivros.innerText = data.total_livros;
+        }
+
+        const elDisp = document.getElementById('metricExemplaresDisponiveis');
+        if (elDisp && data.exemplares_disponiveis !== undefined) {
+            elDisp.innerText = data.exemplares_disponiveis;
+        }
+
+        // Indicadores restritos a usuários autenticados
+        const elTotalEx = document.getElementById('metricTotalExemplares');
+        if (elTotalEx && data.total_exemplares !== undefined) {
+            elTotalEx.innerText = `Total: ${data.total_exemplares} (${data.exemplares_emprestados || 0} emprestados)`;
+        }
+
+        const elAtivos = document.getElementById('metricEmprestimosAtivos');
+        if (elAtivos && data.emprestimos_ativos !== undefined) {
+            elAtivos.innerText = data.emprestimos_ativos;
+        }
+
+        const elAtrasados = document.getElementById('metricEmprestimosAtrasados');
+        if (elAtrasados && data.emprestimos_atrasados !== undefined) {
+            elAtrasados.innerText = `Atrasados: ${data.emprestimos_atrasados}`;
+        }
+
+        const elReservas = document.getElementById('metricReservasPendentes');
+        if (elReservas && data.reservas_pendentes !== undefined) {
+            elReservas.innerText = data.reservas_pendentes;
+        }
+
+        // Tabela de movimentações (apenas para autenticados)
+        const tbody = document.getElementById('tblMovimentacoesBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+            if (!data.movimentacoes_recentes || data.movimentacoes_recentes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Nenhum evento registrado até o momento.</td></tr>';
+            } else {
+                data.movimentacoes_recentes.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="text-muted fw-bold">#${item.id_log}</td>
+                        <td><small class="text-muted">${item.data_registro}</small></td>
+                        <td><span class="badge bg-secondary">${item.id_aluno !== null ? '#' + item.id_aluno : '-'}</span></td>
+                        <td>${item.descricao}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+    } catch (err) {
+        showAlert('dynamicAlerts', `Falha ao carregar indicadores: ${err.message}`, 'danger');
+    }
+}
+</script>
+{% endblock %}

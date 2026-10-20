@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+
+{% block title %}Empréstimos e Devoluções &bull; Sistema de Biblioteca{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="h3 mb-1 text-gray-800">Empréstimos e Circulação</h2>
+        <p class="text-muted mb-0">Controle de saídas de acervo, prazos de devolução e recebimento de exemplares.</p>
+    </div>
+    <div>
+        <a href="{% url 'emprestimo-novo' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Novo Empréstimo
+        </a>
+    </div>
+</div>
+
+<!-- Filtros de Listagem -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <span class="fw-bold small text-muted me-2">Filtrar por:</span>
+            <button class="btn btn-sm btn-outline-primary active" id="btnFiltroTodos" onclick="filtrarEmprestimos('todos')">
+                Todos os Empréstimos
+            </button>
+            <button class="btn btn-sm btn-outline-warning" id="btnFiltroAtivos" onclick="filtrarEmprestimos('ativos')">
+                Empréstimos Ativos
+            </button>
+            <button class="btn btn-sm btn-outline-danger" id="btnFiltroAtrasados" onclick="filtrarEmprestimos('atrasados')">
+                <i class="bi bi-exclamation-triangle me-1"></i> Atrasados
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Tabela de Empréstimos -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th>Usuário / Aluno</th>
+                        <th>Exemplares Vinculados</th>
+                        <th style="width: 130px;">Data Empréstimo</th>
+                        <th style="width: 140px;">Previsão Devolução</th>
+                        <th style="width: 130px;">Status</th>
+                        <th class="text-end" style="width: 140px;">Operação</th>
+                    </tr>
+                </thead>
+                <tbody id="tblEmprestimosBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-5 text-muted">
+                            <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                            Carregando empréstimos...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="small text-muted" id="paginacaoEmprestimosInfo">Exibindo registros</span>
+        <div class="btn-group btn-group-sm" id="paginacaoEmprestimosBotoes"></div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Devolução -->
+<div class="modal fade" id="modalDevolucao" tabindex="-1" aria-labelledby="modalDevolucaoLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDevolucaoLabel">Confirmar Devolução de Exemplares</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p>Deseja confirmar o recebimento e a devolução do <strong>Empréstimo #<span id="devEmprestimoId"></span></strong>?</p>
+                <div class="alert alert-info py-2 small mb-0">
+                    <i class="bi bi-info-circle me-1"></i> Todos os exemplares associados a este empréstimo retornarão automaticamente ao status <strong>Disponível</strong> e o evento será registrado nos logs.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success" id="btnConfirmarDevolucao">
+                    <span class="spinner-border spinner-border-sm d-none me-1" id="spinnerDevolucao"></span>
+                    Confirmar Devolução
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentFiltro = 'todos';
+let currentEmprestimoParaDevolver = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarEmprestimos('/api/emprestimos/');
+    document.getElementById('btnConfirmarDevolucao').addEventListener('click', executarDevolucao);
+});
+
+function filtrarEmprestimos(tipo) {
+    currentFiltro = tipo;
+    ['btnFiltroTodos', 'btnFiltroAtivos', 'btnFiltroAtrasados'].forEach(id => {
+        document.getElementById(id).classList.remove('active');
+    });
+
+    if (tipo === 'todos') {
+        document.getElementById('btnFiltroTodos').classList.add('active');
+        carregarEmprestimos('/api/emprestimos/');
+    } else if (tipo === 'ativos') {
+        document.getElementById('btnFiltroAtivos').classList.add('active');
+        carregarEmprestimos('/api/emprestimos/?data_devolucao__isnull=true');
+    } else if (tipo === 'atrasados') {
+        document.getElementById('btnFiltroAtrasados').classList.add('active');
+        carregarEmprestimos('/api/emprestimos/atrasados/');
+    }
+}
+
+async function carregarEmprestimos(url) {
+    const tbody = document.getElementById('tblEmprestimosBody');
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Carregando registros...</td></tr>';
+
+    try {
+        const data = await apiFetch(url);
+        const emprestimos = data.results || data;
+
+        if (emprestimos.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">Nenhum empréstimo encontrado para o filtro selecionado.</td></tr>';
+            document.getElementById('paginacaoEmprestimosInfo').innerText = '0 registros encontrados';
+            document.getElementById('paginacaoEmprestimosBotoes').innerHTML = '';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        emprestimos.forEach(emp => {
+            let statusBadge = '';
+            let acaoBotao = '';
+
+            if (emp.data_devolucao) {
+                statusBadge = `<span class="badge bg-secondary">Devolvido em ${formatDate(emp.data_devolucao)}</span>`;
+                acaoBotao = `<span class="text-muted small"><i class="bi bi-check-all text-success"></i> Concluído</span>`;
+            } else if (emp.is_atrasado) {
+                statusBadge = `<span class="badge bg-danger">Em atraso</span>`;
+                acaoBotao = `<button class="btn btn-sm btn-outline-success" onclick="abrirModalDevolucao(${emp.id_emprestimo})"><i class="bi bi-arrow-return-left me-1"></i> Devolver</button>`;
+            } else {
+                statusBadge = `<span class="badge bg-warning text-dark">Ativo</span>`;
+                acaoBotao = `<button class="btn btn-sm btn-outline-success" onclick="abrirModalDevolucao(${emp.id_emprestimo})"><i class="bi bi-arrow-return-left me-1"></i> Devolver</button>`;
+            }
+
+            const itensHtml = emp.itens && emp.itens.length > 0
+                ? emp.itens.map(item => `<div><span class="badge bg-light text-dark border">#${item.exemplar}</span> ${item.exemplar_detalhes?.livro_titulo || 'Exemplar'}</div>`).join('')
+                : '<span class="text-muted">Sem itens</span>';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="text-muted fw-bold">#${emp.id_emprestimo}</td>
+                <td>
+                    <div class="fw-semibold">${emp.usuario_nome}</div>
+                    <small class="text-muted">${emp.usuario_email}</small>
+                </td>
+                <td>${itensHtml}</td>
+                <td>${formatDate(emp.data_emprestimo)}</td>
+                <td>
+                    ${formatDate(emp.data_prevista_devolucao)}
+                    ${emp.is_atrasado && !emp.data_devolucao ? '<span class="badge bg-danger ms-1">Vencido</span>' : ''}
+                </td>
+                <td>${statusBadge}</td>
+                <td class="text-end">${acaoBotao}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Paginação
+        if (data.count !== undefined) {
+            document.getElementById('paginacaoEmprestimosInfo').innerText = `Total: ${data.count} empréstimos`;
+            const btnGroup = document.getElementById('paginacaoEmprestimosBotoes');
+            btnGroup.innerHTML = '';
+
+            if (data.previous) {
+                const btnPrev = document.createElement('button');
+                btnPrev.className = 'btn btn-outline-secondary';
+                btnPrev.innerHTML = '&laquo; Anterior';
+                btnPrev.onclick = () => carregarEmprestimos(data.previous);
+                btnGroup.appendChild(btnPrev);
+            }
+
+            if (data.next) {
+                const btnNext = document.createElement('button');
+                btnNext.className = 'btn btn-outline-secondary';
+                btnNext.innerHTML = 'Próxima &raquo;';
+                btnNext.onclick = () => carregarEmprestimos(data.next);
+                btnGroup.appendChild(btnNext);
+            }
+        }
+
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-4 text-danger">Erro ao carregar dados: ${err.message}</td></tr>`;
+    }
+}
+
+function abrirModalDevolucao(id) {
+    currentEmprestimoParaDevolver = id;
+    document.getElementById('devEmprestimoId').innerText = id;
+    const modal = new bootstrap.Modal(document.getElementById('modalDevolucao'));
+    modal.show();
+}
+
+async function executarDevolucao() {
+    if (!currentEmprestimoParaDevolver) return;
+
+    const btn = document.getElementById('btnConfirmarDevolucao');
+    const spinner = document.getElementById('spinnerDevolucao');
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+
+    try {
+        await apiFetch(`/api/emprestimos/${currentEmprestimoParaDevolver}/devolucao/`, {
+            method: 'POST'
+        });
+
+        showAlert('dynamicAlerts', `Empréstimo #${currentEmprestimoParaDevolver} devolvido com sucesso!`, 'success');
+
+        const modalEl = document.getElementById('modalDevolucao');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+
+        filtrarEmprestimos(currentFiltro);
+    } catch (err) {
+        alert(`Erro na devolução: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+</script>
+{% endblock %}

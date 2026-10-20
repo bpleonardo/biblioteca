@@ -1,0 +1,333 @@
+{% extends 'base.html' %}
+
+{% block title %}Catálogo de Obras &bull; Sistema de Biblioteca{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="h3 mb-1 text-gray-800">Catálogo de Livros</h2>
+        <p class="text-muted mb-0">Consulta bibliográfica, múltiplos autores e disponibilidade de exemplares físicos.</p>
+    </div>
+    <div>
+        {% if user.is_authenticated %}
+            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovoLivro">
+                <i class="bi bi-plus-lg me-1"></i> Cadastrar Livro
+            </button>
+        {% else %}
+            <a href="{% url 'login' %}?next={% url 'catalogo' %}" class="btn btn-outline-primary">
+                <i class="bi bi-box-arrow-in-right me-1"></i> Entrar no Sistema
+            </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Barra de Busca e Filtros -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form id="formFiltroCatalogo" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label for="inputBusca" class="form-label small fw-bold">Pesquisa Geral</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="inputBusca" placeholder="Título, ISBN ou Autor...">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label for="selectCategoria" class="form-label small fw-bold">Categoria</label>
+                <select class="form-select" id="selectCategoria">
+                    <option value="">Todas as categorias</option>
+                    {% for cat in categorias %}
+                        <option value="{{ cat.id_categoria }}">{{ cat.descricao }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label for="selectEditora" class="form-label small fw-bold">Editora</label>
+                <select class="form-select" id="selectEditora">
+                    <option value="">Todas as editoras</option>
+                    {% for ed in editoras %}
+                        <option value="{{ ed.id_editora }}">{{ ed.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-flex gap-1">
+                <button type="submit" class="btn btn-secondary w-100" title="Filtrar">
+                    <i class="bi bi-funnel"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabela de Livros -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 70px;">ID</th>
+                        <th>Título</th>
+                        <th>Autores</th>
+                        <th>Categoria</th>
+                        <th>Editora</th>
+                        <th>ISBN</th>
+                        <th class="text-center" style="width: 140px;">Exemplares</th>
+                        <th class="text-end" style="width: 120px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tblLivrosBody">
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                            Carregando catálogo...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <!-- Paginação -->
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="small text-muted" id="paginacaoInfo">Exibindo registros</span>
+        <div class="btn-group btn-group-sm" id="paginacaoBotoes">
+            <!-- Botões dinâmicos via JS -->
+        </div>
+    </div>
+</div>
+
+{% if user.is_authenticated %}
+<!-- Modal Novo Livro -->
+<div class="modal fade" id="modalNovoLivro" tabindex="-1" aria-labelledby="modalNovoLivroLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovoLivroLabel">Cadastrar Nova Obra Bibliográfica</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <form id="formNovoLivro">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="titulo" class="form-label">Título da Obra *</label>
+                        <input type="text" class="form-control" id="titulo" name="titulo" required>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="isbn" class="form-label">ISBN</label>
+                            <input type="text" class="form-control" id="isbn" name="isbn" placeholder="ex: 978-8573076103">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="categoria" class="form-label">Categoria *</label>
+                            <select class="form-select" id="categoria" name="categoria" required>
+                                <option value="">Selecione...</option>
+                                {% for cat in categorias %}
+                                    <option value="{{ cat.id_categoria }}">{{ cat.descricao }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="editora" class="form-label">Editora *</label>
+                            <select class="form-select" id="editora" name="editora" required>
+                                <option value="">Selecione...</option>
+                                {% for ed in editoras %}
+                                    <option value="{{ ed.id_editora }}">{{ ed.nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="autores_ids" class="form-label">Autores (Selecione um ou mais) *</label>
+                            <select class="form-select" id="autores_ids" name="autores_ids" multiple size="4" required>
+                                <!-- Preenchido dinamicamente via JS -->
+                            </select>
+                            <div class="form-text small">Pressione Ctrl (ou Cmd) para selecionar múltiplos autores.</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnSalvarLivro">
+                        <span class="spinner-border spinner-border-sm d-none me-1" id="spinnerSalvarLivro"></span>
+                        Salvar Obra
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentPageUrl = '/api/livros/';
+
+document.addEventListener('DOMContentLoaded', () => {
+    carregarLivros(currentPageUrl);
+    carregarAutoresSelect();
+
+    document.getElementById('formFiltroCatalogo').addEventListener('submit', (e) => {
+        e.preventDefault();
+        aplicarFiltros();
+    });
+
+    const formNovo = document.getElementById('formNovoLivro');
+    if (formNovo) {
+        formNovo.addEventListener('submit', salvarNovoLivro);
+    }
+});
+
+async function carregarAutoresSelect() {
+    try {
+        const data = await apiFetch('/api/autores/');
+        const autores = data.results || data;
+        const select = document.getElementById('autores_ids');
+        select.innerHTML = '';
+        autores.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.id_autor;
+            opt.textContent = a.nome;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error('Erro ao carregar autores:', err);
+    }
+}
+
+async function carregarLivros(url) {
+    const tbody = document.getElementById('tblLivrosBody');
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Carregando obras...</td></tr>';
+
+    try {
+        const data = await apiFetch(url);
+        const livros = data.results || data;
+
+        if (livros.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">Nenhuma obra bibliográfica encontrada.</td></tr>';
+            document.getElementById('paginacaoInfo').innerText = '0 registros encontrados';
+            document.getElementById('paginacaoBotoes').innerHTML = '';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        livros.forEach(livro => {
+            const autoresList = livro.autores_detalhes && livro.autores_detalhes.length > 0 
+                ? livro.autores_detalhes.map(a => a.nome).join(', ') 
+                : '<span class="text-muted fst-italic">Nenhum autor</span>';
+
+            const badgeDisp = livro.exemplares_disponiveis > 0 
+                ? `<span class="badge badge-status badge-disponivel">${livro.exemplares_disponiveis} disp. / ${livro.total_exemplares} tot.</span>`
+                : `<span class="badge badge-status badge-indisponivel">0 disp. / ${livro.total_exemplares} tot.</span>`;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="text-muted fw-bold">#${livro.id_livro}</td>
+                <td class="fw-semibold">
+                    <a href="/catalogo/livros/${livro.id_livro}/" class="text-decoration-none text-dark hover-primary">
+                        ${livro.titulo}
+                    </a>
+                </td>
+                <td><small class="text-muted">${autoresList}</small></td>
+                <td><span class="badge bg-light text-dark border">${livro.categoria_descricao || '-'}</span></td>
+                <td><small>${livro.editora_nome || '-'}</small></td>
+                <td><code>${livro.isbn || '-'}</code></td>
+                <td class="text-center">${badgeDisp}</td>
+                <td class="text-end">
+                    <a href="/catalogo/livros/${livro.id_livro}/" class="btn btn-sm btn-outline-primary" title="Ver Detalhes e Exemplares">
+                        <i class="bi bi-eye"></i> Detalhes
+                    </a>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Paginação
+        if (data.count !== undefined) {
+            document.getElementById('paginacaoInfo').innerText = `Total: ${data.count} obras registradas`;
+            const btnGroup = document.getElementById('paginacaoBotoes');
+            btnGroup.innerHTML = '';
+
+            if (data.previous) {
+                const btnPrev = document.createElement('button');
+                btnPrev.className = 'btn btn-outline-secondary';
+                btnPrev.innerHTML = '&laquo; Anterior';
+                btnPrev.onclick = () => carregarLivros(data.previous);
+                btnGroup.appendChild(btnPrev);
+            }
+
+            if (data.next) {
+                const btnNext = document.createElement('button');
+                btnNext.className = 'btn btn-outline-secondary';
+                btnNext.innerHTML = 'Próxima &raquo;';
+                btnNext.onclick = () => carregarLivros(data.next);
+                btnGroup.appendChild(btnNext);
+            }
+        }
+
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-danger">Erro ao carregar livros: ${err.message}</td></tr>`;
+    }
+}
+
+function aplicarFiltros() {
+    const search = document.getElementById('inputBusca').value.trim();
+    const categoria = document.getElementById('selectCategoria').value;
+    const editora = document.getElementById('selectEditora').value;
+
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (categoria) params.append('categoria', categoria);
+    if (editora) params.append('editora', editora);
+
+    carregarLivros(`/api/livros/?${params.toString()}`);
+}
+
+async function salvarNovoLivro(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnSalvarLivro');
+    const spinner = document.getElementById('spinnerSalvarLivro');
+
+    const selectAutores = document.getElementById('autores_ids');
+    const autoresSelecionados = Array.from(selectAutores.selectedOptions).map(opt => parseInt(opt.value));
+
+    if (autoresSelecionados.length === 0) {
+        alert('Selecione pelo menos um autor para a obra.');
+        return;
+    }
+
+    const payload = {
+        titulo: document.getElementById('titulo').value.trim(),
+        isbn: document.getElementById('isbn').value.trim() || null,
+        categoria: parseInt(document.getElementById('categoria').value),
+        editora: parseInt(document.getElementById('editora').value),
+        autores_ids: autoresSelecionados
+    };
+
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+
+    try {
+        await apiFetch('/api/livros/', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        showAlert('dynamicAlerts', 'Obra bibliográfica cadastrada com sucesso!', 'success');
+        
+        // Fechar modal e resetar form
+        const modalEl = document.getElementById('modalNovoLivro');
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+        document.getElementById('formNovoLivro').reset();
+
+        carregarLivros(currentPageUrl);
+    } catch (err) {
+        alert(`Erro ao cadastrar obra: ${err.message}`);
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+
+{% block title %}Registrar Novo Empréstimo &bull; Sistema de Biblioteca{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{% url 'emprestimos' %}" class="btn btn-outline-secondary btn-sm mb-3">
+        <i class="bi bi-arrow-left me-1"></i> Voltar aos Empréstimos
+    </a>
+    <h2 class="h3 mb-1 text-gray-800">Registrar Novo Empréstimo</h2>
+    <p class="text-muted mb-0">Selecione o usuário, pesquise os exemplares disponíveis e defina o prazo de devolução.</p>
+</div>
+
+<div class="row g-4">
+    <!-- Formulário Principal -->
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white py-3">
+                <h5 class="m-0 font-weight-bold text-primary fs-6">
+                    <i class="bi bi-person me-1"></i> 1. Selecionar Usuário / Aluno
+                </h5>
+            </div>
+            <div class="card-body">
+                <label for="selectUsuario" class="form-label fw-semibold">Usuário Solicitante *</label>
+                <select class="form-select form-select-lg" id="selectUsuario" required>
+                    <option value="">Selecione um usuário...</option>
+                    {% for u in usuarios %}
+                        <option value="{{ u.id_usuario }}">{{ u.nome }} ({{ u.email }})</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text small">Usuários cadastrados no sistema acadêmico ou biblioteca.</div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="m-0 font-weight-bold text-primary fs-6">
+                    <i class="bi bi-search me-1"></i> 2. Buscar e Adicionar Exemplares Disponíveis
+                </h5>
+                <span class="badge bg-success" id="badgeDisponiveisContador">...</span>
+            </div>
+            <div class="card-body">
+                <div class="input-group mb-3">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="inputBuscaExemplar" placeholder="Buscar título do livro ou código do exemplar...">
+                    <button class="btn btn-outline-secondary" type="button" id="btnBuscarExemplar">Buscar</button>
+                </div>
+
+                <div class="table-responsive" style="max-height: 280px; overflow-y: auto;">
+                    <table class="table table-sm table-hover align-middle mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th style="width: 80px;">Exemplar</th>
+                                <th>Livro / Título</th>
+                                <th>Edição</th>
+                                <th class="text-end" style="width: 100px;">Adicionar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tblExemplaresDisponiveisBody">
+                            <tr>
+                                <td colspan="4" class="text-center py-4 text-muted">Carregando exemplares disponíveis...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cesto do Empréstimo e Confirmação -->
+    <div class="col-lg-4">
+        <div class="card shadow-sm border-primary">
+            <div class="card-header bg-primary text-white py-3">
+                <h5 class="m-0 font-weight-bold fs-6">
+                    <i class="bi bi-basket me-1"></i> Resumo do Empréstimo
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="dataPrevistaDevolucao" class="form-label fw-semibold">Previsão de Devolução *</label>
+                    <input type="date" class="form-control" id="dataPrevistaDevolucao" required>
+                    <div class="form-text small">Prazo padrão sugerido: 14 dias a partir de hoje.</div>
+                </div>
+
+                <hr>
+
+                <h6 class="fw-bold mb-2">Exemplares Selecionados (<span id="countSelecionados">0</span>):</h6>
+                <ul class="list-group list-group-flush mb-3" id="listaExemplaresSelecionados">
+                    <li class="list-group-item text-muted fst-italic px-0 py-2 text-center" id="emptyCestoAviso">
+                        Nenhum exemplar adicionado ainda.
+                    </li>
+                </ul>
+
+                <div class="d-grid gap-2">
+                    <button class="btn btn-success btn-lg" id="btnConfirmarEmprestimo" disabled>
+                        <span class="spinner-border spinner-border-sm d-none me-1" id="spinnerEmprestimo"></span>
+                        <i class="bi bi-check-circle me-1"></i> Concluir Empréstimo
+                    </button>
+                    <a href="{% url 'emprestimos' %}" class="btn btn-light border">Cancelar</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let exemplaresDisponiveis = [];
+let exemplaresNoCesto = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Definir data padrão de devolução: hoje + 14 dias
+    const hoje = new Date();
+    hoje.setDate(hoje.getDate() + 14);
+    const dataFormatada = hoje.toISOString().split('T')[0];
+    document.getElementById('dataPrevistaDevolucao').value = dataFormatada;
+    document.getElementById('dataPrevistaDevolucao').min = new Date().toISOString().split('T')[0];
+
+    // Se houver parâmetro na URL: ?exemplar=ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const preExemplar = urlParams.get('exemplar');
+
+    carregarExemplaresDisponiveis(preExemplar);
+
+    document.getElementById('btnBuscarExemplar').addEventListener('click', filtrarExemplaresTabela);
+    document.getElementById('inputBuscaExemplar').addEventListener('input', filtrarExemplaresTabela);
+    document.getElementById('btnConfirmarEmprestimo').addEventListener('click', confirmarEmprestimo);
+});
+
+async function carregarExemplaresDisponiveis(preSelecionarId = null) {
+    try {
+        const data = await apiFetch('/api/exemplares/?situacao=Disponível');
+        exemplaresDisponiveis = data.results || data;
+
+        document.getElementById('badgeDisponiveisContador').innerText = `${exemplaresDisponiveis.length} disponíveis`;
+        renderizarTabelaDisponiveis(exemplaresDisponiveis);
+
+        if (preSelecionarId) {
+            const exId = parseInt(preSelecionarId);
+            const found = exemplaresDisponiveis.find(e => e.id_exemplar === exId);
+            if (found) {
+                adicionarAoCesto(found);
+            }
+        }
+    } catch (err) {
+        console.error('Erro ao carregar exemplares:', err);
+    }
+}
+
+function renderizarTabelaDisponiveis(lista) {
+    const tbody = document.getElementById('tblExemplaresDisponiveisBody');
+    tbody.innerHTML = '';
+
+    if (lista.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Nenhum exemplar disponível encontrado.</td></tr>';
+        return;
+    }
+
+    lista.forEach(ex => {
+        const jaNoCesto = exemplaresNoCesto.some(item => item.id_exemplar === ex.id_exemplar);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="fw-bold text-muted">#${ex.id_exemplar}</td>
+            <td class="fw-semibold">${ex.livro_titulo}</td>
+            <td><small class="text-muted">${ex.edicao || 'Padrão'}</small></td>
+            <td class="text-end">
+                <button class="btn btn-sm ${jaNoCesto ? 'btn-secondary' : 'btn-outline-primary'}" 
+                        ${jaNoCesto ? 'disabled' : ''} 
+                        onclick="adicionarAoCestoPorId(${ex.id_exemplar})">
+                    ${jaNoCesto ? 'Adicionado' : '<i class="bi bi-plus-lg"></i>'}
+                </button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function filtrarExemplaresTabela() {
+    const termo = document.getElementById('inputBuscaExemplar').value.toLowerCase().trim();
+    if (!termo) {
+        renderizarTabelaDisponiveis(exemplaresDisponiveis);
+        return;
+    }
+
+    const filtrados = exemplaresDisponiveis.filter(ex => 
+        (ex.livro_titulo && ex.livro_titulo.toLowerCase().includes(termo)) ||
+        ex.id_exemplar.toString().includes(termo)
+    );
+    renderizarTabelaDisponiveis(filtrados);
+}
+
+function adicionarAoCestoPorId(id) {
+    const ex = exemplaresDisponiveis.find(item => item.id_exemplar === id);
+    if (ex) adicionarAoCesto(ex);
+}
+
+function adicionarAoCesto(ex) {
+    if (exemplaresNoCesto.some(item => item.id_exemplar === ex.id_exemplar)) return;
+
+    exemplaresNoCesto.push(ex);
+    atualizarCestoUI();
+    filtrarExemplaresTabela();
+}
+
+function removerDoCesto(id) {
+    exemplaresNoCesto = exemplaresNoCesto.filter(item => item.id_exemplar !== id);
+    atualizarCestoUI();
+    filtrarExemplaresTabela();
+}
+
+function atualizarCestoUI() {
+    const countSpan = document.getElementById('countSelecionados');
+    countSpan.innerText = exemplaresNoCesto.length;
+
+    const listaUl = document.getElementById('listaExemplaresSelecionados');
+    listaUl.innerHTML = '';
+
+    if (exemplaresNoCesto.length === 0) {
+        listaUl.innerHTML = '<li class="list-group-item text-muted fst-italic px-0 py-2 text-center" id="emptyCestoAviso">Nenhum exemplar adicionado ainda.</li>';
+        document.getElementById('btnConfirmarEmprestimo').disabled = true;
+        return;
+    }
+
+    document.getElementById('btnConfirmarEmprestimo').disabled = false;
+
+    exemplaresNoCesto.forEach(ex => {
+        const li = document.createElement('li');
+        li.className = 'list-group-item d-flex justify-content-between align-items-center px-0 py-2';
+        li.innerHTML = `
+            <div>
+                <span class="badge bg-light text-dark border me-1">#${ex.id_exemplar}</span>
+                <span class="small fw-semibold">${ex.livro_titulo}</span>
+            </div>
+            <button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="removerDoCesto(${ex.id_exemplar})" title="Remover">
+                <i class="bi bi-trash"></i>
+            </button>
+        `;
+        listaUl.appendChild(li);
+    });
+}
+
+async function confirmarEmprestimo() {
+    const usuarioId = document.getElementById('selectUsuario').value;
+    const dataPrevista = document.getElementById('dataPrevistaDevolucao').value;
+
+    if (!usuarioId) {
+        alert('Por favor, selecione um usuário.');
+        return;
+    }
+
+    if (exemplaresNoCesto.length === 0) {
+        alert('Adicione pelo menos um exemplar ao empréstimo.');
+        return;
+    }
+
+    if (!dataPrevista) {
+        alert('Por favor, informe a data prevista de devolução.');
+        return;
+    }
+
+    const payload = {
+        usuario_id: parseInt(usuarioId),
+        exemplar_ids: exemplaresNoCesto.map(e => e.id_exemplar),
+        data_prevista_devolucao: dataPrevista
+    };
+
+    const btn = document.getElementById('btnConfirmarEmprestimo');
+    const spinner = document.getElementById('spinnerEmprestimo');
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+
+    try {
+        const resultado = await apiFetch('/api/emprestimos/', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+
+        showAlert('dynamicAlerts', `Empréstimo #${resultado.id_emprestimo} registrado com sucesso para ${resultado.usuario_nome}!`, 'success');
+        setTimeout(() => {
+            window.location.href = '{% url "emprestimos" %}';
+        }, 1500);
+
+    } catch (err) {
+        alert(`Erro ao registrar empréstimo: ${err.message}`);
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+</script>
+{% endblock %}

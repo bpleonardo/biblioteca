@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+
+{% block title %}Auditoria e Logs &bull; Sistema de Biblioteca{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="h3 mb-1 text-gray-800">Registros de Auditoria e Logs</h2>
+        <p class="text-muted mb-0">Rastreabilidade completa de eventos alimentada via Stored Procedure do PostgreSQL (<code>sp_reg_log_sistema</code>).</p>
+    </div>
+    <div>
+        <button class="btn btn-outline-secondary" onclick="carregarLogs('/api/logs/')">
+            <i class="bi bi-arrow-clockwise me-1"></i> Atualizar Logs
+        </button>
+    </div>
+</div>
+
+<!-- Filtros de Busca -->
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form id="formFiltroLogs" class="row g-3">
+            <div class="col-md-9">
+                <label for="inputBuscaLogs" class="form-label small fw-bold">Buscar na descrição do log</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" class="form-control" id="inputBuscaLogs" placeholder="ex: Empréstimo, Reserva, Usuário...">
+                </div>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-funnel me-1"></i> Filtrar Logs
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabela de Logs -->
+<div class="card shadow-sm">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 90px;"># Log</th>
+                        <th style="width: 200px;">Data / Hora do Evento</th>
+                        <th style="width: 140px;">ID Usuário/Aluno</th>
+                        <th>Descrição da Ação</th>
+                    </tr>
+                </thead>
+                <tbody id="tblLogsBody">
+                    <tr>
+                        <td colspan="4" class="text-center py-5 text-muted">
+                            <span class="spinner-border spinner-border-sm text-primary me-2"></span>
+                            Carregando registros de auditoria...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3">
+        <span class="small text-muted" id="paginacaoLogsInfo">Exibindo registros</span>
+        <div class="btn-group btn-group-sm" id="paginacaoLogsBotoes"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    carregarLogs('/api/logs/');
+    document.getElementById('formFiltroLogs').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const termo = document.getElementById('inputBuscaLogs').value.trim();
+        const url = termo ? `/api/logs/?search=${encodeURIComponent(termo)}` : '/api/logs/';
+        carregarLogs(url);
+    });
+});
+
+async function carregarLogs(url) {
+    const tbody = document.getElementById('tblLogsBody');
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted"><span class="spinner-border spinner-border-sm text-primary me-2"></span>Carregando logs...</td></tr>';
+
+    try {
+        const data = await apiFetch(url);
+        const logs = data.results || data;
+
+        if (logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-muted">Nenhum registro de log encontrado.</td></tr>';
+            document.getElementById('paginacaoLogsInfo').innerText = '0 registros encontrados';
+            document.getElementById('paginacaoLogsBotoes').innerHTML = '';
+            return;
+        }
+
+        tbody.innerHTML = '';
+        logs.forEach(log => {
+            const dataFmt = new Date(log.data_registro).toLocaleString('pt-BR');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="text-muted fw-bold">#${log.id_log}</td>
+                <td><small class="text-muted font-monospace">${dataFmt}</small></td>
+                <td>
+                    ${log.id_aluno !== null 
+                        ? `<span class="badge bg-secondary font-monospace">#${log.id_aluno}</span>` 
+                        : '<span class="text-muted">-</span>'}
+                </td>
+                <td class="fw-medium">${log.descricao}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Paginação
+        if (data.count !== undefined) {
+            document.getElementById('paginacaoLogsInfo').innerText = `Total: ${data.count} eventos registrados`;
+            const btnGroup = document.getElementById('paginacaoLogsBotoes');
+            btnGroup.innerHTML = '';
+
+            if (data.previous) {
+                const btnPrev = document.createElement('button');
+                btnPrev.className = 'btn btn-outline-secondary';
+                btnPrev.innerHTML = '&laquo; Anterior';
+                btnPrev.onclick = () => carregarLogs(data.previous);
+                btnGroup.appendChild(btnPrev);
+            }
+
+            if (data.next) {
+                const btnNext = document.createElement('button');
+                btnNext.className = 'btn btn-outline-secondary';
+                btnNext.innerHTML = 'Próxima &raquo;';
+                btnNext.onclick = () => carregarLogs(data.next);
+                btnGroup.appendChild(btnNext);
+            }
+        }
+
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-danger">Erro ao carregar logs: ${err.message}</td></tr>`;
+    }
+}
+</script>
+{% endblock %}
